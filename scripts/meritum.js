@@ -40,10 +40,12 @@ const sequelize_1 = require('sequelize');
 const sequelizeLoader_1 = require('./models/sequelizeLoader');
 const accounts_1 = require('./models/accounts');
 const loginBonuses_1 = require('./models/loginBonuses');
+const omikuji_1 = require('./models/omikuji');
 const LOGIN_BONUS_MERITUN = 100; // ログインボーナス
 const BOT_INITIAL_MERITUM = 20000; // ボットの初期めりたん
 const MAX_JANKEN_BET = 20; // 最大ベット
 const GACHA_MERITUM = 280; // ガチャ費用
+const OMIKUJI_MERITUM = 10; // おみくじ費用
 const USER_INITIAL_MERITUM = GACHA_MERITUM + MAX_JANKEN_BET; // ユーザーの初期めりたん
 /**
  * ログインボーナス受領日を取得する、午前7時に変わるため、7時間前の時刻を返す
@@ -58,6 +60,7 @@ class MessageWithRawText extends hubot_1.Message {}
   __awaiter(void 0, void 0, void 0, function*() {
     yield accounts_1.Account.sync();
     yield loginBonuses_1.LoginBonus.sync();
+    yield omikuji_1.Omikuji.sync();
   }))();
 module.exports = robot => {
   // ヘルプ表示
@@ -72,6 +75,7 @@ module.exports = robot => {
         '`mlogin>` : ログインボーナスの *100めりたん* をゲット。毎朝7時にリセット。\n' +
         `\`mjanken> (グー|チョキ|パー) (1-${MAX_JANKEN_BET})\` : めりたんbotとめりたんを賭けてジャンケン。\n` +
         `\`mgacha>\` : *${GACHA_MERITUM}めりたん* でガチャを回し、称号をゲット。\n` +
+        `\`mmikuji>\` : *${OMIKUJI_MERITUM}めりたん* でおみくじを引き、今日の運勢を占って景品をもらおう。\n` +
         '`mself>` : 自分の順位、称号数、全称号、めりたんを表示。\n' +
         '`mranking>` : 称号数で決まるランキングを表示(同称号数なら、めりたんの数順)。\n' +
         '`mrank> (@ユーザー名)` : 指定したユーザーの順位、称号数、全称号、めりたんを表示。\n' +
@@ -102,7 +106,7 @@ module.exports = robot => {
           // 取得済み
           yield t.commit();
           res.send(
-            `<@${slackId}>さんは、既に今日のログインボーナスをゲット済みだよ。`
+            `<@${slackId}>ちゃんは、既に今日のログインボーナスをゲット済みだよ。`
           );
         } else {
           // 付与へ
@@ -144,7 +148,7 @@ module.exports = robot => {
           });
           yield t.commit();
           res.send(
-            `<@${slackId}>さんに、ログインボーナスとして *${LOGIN_BONUS_MERITUN}めりたん* をプレゼント。これで *${meritum}めりたん* となったよ。`
+            `<@${slackId}>ちゃんに、ログインボーナスとして *${LOGIN_BONUS_MERITUN}めりたん* をプレゼント。これで *${meritum}めりたん* になったよ。`
           );
         }
       } catch (e) {
@@ -168,7 +172,7 @@ module.exports = robot => {
       const bet = parseInt(res.match[2]);
       if (bet > MAX_JANKEN_BET) {
         res.send(
-          `*${MAX_JANKEN_BET}めりたん* 以上をかけてジャンケンすることは禁止されているよ。`
+          `*${MAX_JANKEN_BET}めりたん* より大きい数をかけてジャンケンすることは禁止されているよ。`
         );
         return;
       }
@@ -204,8 +208,8 @@ module.exports = robot => {
         }
         // ボットアカウントがない場合に作成してもまだないなら終了
         if (!botAccount) {
-          res.send('ボットアカウントを作成することができなかってみたい。');
-          console.log('ボットアカウントを作成することができなかってみたい。');
+          res.send('ボットアカウントを作成することができなかったみたい。');
+          console.log('ボットアカウントを作成することができなかったみたい。');
           yield t.commit();
           return;
         }
@@ -227,7 +231,7 @@ module.exports = robot => {
         } else if (account.meritum < bet) {
           // ベット分持っていない場合、終了
           res.send(
-            `<@${slackId}>は *${bet}めりたん* がないからジャンケンできないよ。`
+            `<@${slackId}>ちゃんは *${bet}めりたん* がないからジャンケンできないよ。`
           );
           yield t.commit();
           return;
@@ -271,7 +275,7 @@ module.exports = robot => {
             }
           );
           res.send(
-            `ジャンケン！ ${botHand}！...${displayName}ちゃんの *負け* だよ。 *${bet}めりたん* もらうね。これで *${account.meritum -
+            `ジャンケン！ ${botHand}！...<@${slackId}>ちゃんの *負け* だよ。 *${bet}めりたん* もらうね。これで *${account.meritum -
               bet}めりたん* になったよ。`
           );
         } else {
@@ -293,7 +297,7 @@ module.exports = robot => {
             }
           );
           res.send(
-            `ジャンケン！ ${botHand}！...${displayName}ちゃんの *勝ち* だよ。 *${bet}めりたん* をあげるね。これで *${account.meritum +
+            `ジャンケン！ ${botHand}！...<@${slackId}>ちゃんの *勝ち* だよ。 *${bet}めりたん* をあげるね。これで *${account.meritum +
               bet}めりたん* になったよ。`
           );
         }
@@ -333,7 +337,7 @@ module.exports = robot => {
         } else if (account.meritum < GACHA_MERITUM) {
           // ガチャ費用を持っていない場合、終了
           res.send(
-            `<@${slackId}>は、ガチャ費用の *${GACHA_MERITUM}めりたん* がないからガチャできないよ。`
+            `<@${slackId}>ちゃんは、ガチャ費用の *${GACHA_MERITUM}めりたん* がないからガチャできないよ。`
           );
           yield t.commit();
           return;
@@ -393,7 +397,7 @@ module.exports = robot => {
           }
         );
         res.send(
-          `称号 *${title}* を手に入れたよ！ 称号数は *${newTitlesStr.length}個* 、全称号は *${newTitlesStr}* 、残り *${newMeritum}めりたん* となったよ。`
+          `称号 *${title}* を手に入れたよ！ 称号数は *${newTitlesStr.length}個* 、全称号は *${newTitlesStr}* 、残り *${newMeritum}めりたん* になったよ。`
         );
         // 既に持っている称号の場合は、5分の1の確率でめりたんbotに引き取られる
         if (account.titles.includes(title) && Math.random() > 0.8) {
@@ -419,7 +423,7 @@ module.exports = robot => {
             }
           );
           res.send(
-            `称号 *${title}* はもうあるみたいだから、めりたんbotがもらっちゃうね。 めりたんbotの称号数は *${newBotTitlesStr.length}個* 、全称号は *${newBotTitlesStr}* 、 *${botAccount.meritum}めりたん* となったよ。`
+            `称号 *${title}* はもうあるみたいだから、めりたんbotがもらっちゃうね。 めりたんbotの称号数は *${newBotTitlesStr.length}個* 、全称号は *${newBotTitlesStr}* 、 *${botAccount.meritum}めりたん* になったよ。`
           );
         }
         yield t.commit();
@@ -480,7 +484,7 @@ module.exports = robot => {
         yield t.commit();
         const titlesWithAlt = account.titles || 'なし';
         res.send(
-          `きみの順位は *第${rank}位* 、 称号数は *${account.numOfTitles}個* 、全称号は *${titlesWithAlt}* 、めりたん数は *${account.meritum}めりたん* だよ。`
+          `<@${slackId}>ちゃんの順位は *第${rank}位* 、 称号数は *${account.numOfTitles}個* 、全称号は *${titlesWithAlt}* 、めりたん数は *${account.meritum}めりたん* だよ。`
         );
       } catch (e) {
         console.log('Error on mself> e:');
@@ -489,8 +493,8 @@ module.exports = robot => {
       }
     })
   );
-  // 自分のデータ表示
-  robot.hear(/^mranking>$/i, res =>
+  // 自分のデータ表示 (Slackbot対応のため行頭でなくても許可)
+  robot.hear(/mranking>$/i, res =>
     __awaiter(void 0, void 0, void 0, function*() {
       const user = res.message.user;
       const slack = user.slack;
@@ -532,7 +536,7 @@ module.exports = robot => {
     __awaiter(void 0, void 0, void 0, function*() {
       const rawText = res.message.rawText;
       if (!rawText) {
-        res.send('rawTextが正しく取得でいないみたい。');
+        res.send('rawTextが正しく取得できていないみたい。');
         return;
       }
       const parsed = rawText.match(/^mrank&gt; <@(.+)>.*/);
@@ -567,7 +571,7 @@ module.exports = robot => {
         yield t.commit();
         const titlesWithAlt = account.titles || 'なし';
         res.send(
-          `<@${slackId}>の順位は *第${rank}位* 、 称号数は *${account.numOfTitles}個* 、全称号は *${titlesWithAlt}* 、めりたん数は *${account.meritum}めりたん* だよ。`
+          `<@${slackId}>ちゃんの順位は *第${rank}位* 、 称号数は *${account.numOfTitles}個* 、全称号は *${titlesWithAlt}* 、めりたん数は *${account.meritum}めりたん* だよ。`
         );
       } catch (e) {
         console.log('Error on mrank> e:');
@@ -664,12 +668,188 @@ module.exports = robot => {
         );
         yield t.commit();
         res.send(
-          `<@${fromSlackId}> から  <@${toSlackId}> に *${sendMeritum}めりたん* を送って、<@${fromSlackId}> は *${fromAccount.meritum -
-            sendMeritum}めりたん* に、 <@${toSlackId}> は *${toAccount.meritum +
+          `<@${fromSlackId}>から<@${toSlackId}>に *${sendMeritum}めりたん* を送って、<@${fromSlackId}>は *${fromAccount.meritum -
+            sendMeritum}めりたん* に、 <@${toSlackId}>は *${toAccount.meritum +
             sendMeritum}めりたん* になったよ。`
         );
       } catch (e) {
         console.log('Error on msend> e:');
+        console.log(e);
+        yield t.rollback();
+      }
+    })
+  );
+  // 運命のおみくじ
+  robot.hear(/^mmikuji>$/i, res =>
+    __awaiter(void 0, void 0, void 0, function*() {
+      const user = res.message.user;
+      const slackId = user.id;
+      const name = user.name;
+      const realName = user.real_name;
+      const slack = user.slack;
+      const displayName = slack.profile.display_name;
+      const slackBot = robot.adapter;
+      const MAX_WIN = 20;
+      const t = yield sequelizeLoader_1.database.transaction();
+      try {
+        const receiptDate = getReceiptToday();
+        const countOmikuji = yield omikuji_1.Omikuji.count({
+          where: {
+            slackId: slackId,
+            receiptDate: {
+              [sequelize_1.Op.eq]: receiptDate
+            }
+          }
+        });
+        if (countOmikuji === 1) {
+          // 占い済み
+          yield t.commit();
+          res.send(`<@${slackId}>ちゃんは、既に今日の運勢を占ったよ。`);
+        } else {
+          // ボット自身に最低でも20めりたんあるかチェック
+          let botAccount = yield accounts_1.Account.findByPk(slackBot.self.id);
+          if (!botAccount) {
+            // ボットアカウントがない場合作る
+            yield accounts_1.Account.create({
+              slackId: slackBot.self.id,
+              name: slackBot.self.name,
+              realName: '',
+              displayName: '',
+              meritum: BOT_INITIAL_MERITUM,
+              titles: '',
+              numOfTitles: 0
+            });
+            botAccount = yield accounts_1.Account.findByPk(slackBot.self.id);
+          } else if (botAccount.meritum < MAX_WIN) {
+            // 最大景品分持っていない場合、終了
+            res.send(
+              `<@${slackBot.self.id}>はおみくじを用意できなかったみたい。`
+            );
+            yield t.commit();
+            return;
+          }
+          // ボットアカウントがない場合に作成してもまだないなら終了
+          if (!botAccount) {
+            res.send('ボットアカウントを作成することができなかったみたい。');
+            console.log('ボットアカウントを作成することができなかったみたい。');
+            yield t.commit();
+            return;
+          }
+          // 相手がおみくじできるかチェック
+          let account = yield accounts_1.Account.findByPk(slackId);
+          if (!account) {
+            // アカウントがない場合作る
+            const meritum = 0;
+            yield accounts_1.Account.create({
+              slackId,
+              name,
+              realName,
+              displayName,
+              meritum: USER_INITIAL_MERITUM,
+              titles: '',
+              numOfTitles: 0
+            });
+            account = yield accounts_1.Account.findByPk(slackId);
+          } else if (account.meritum < OMIKUJI_MERITUM) {
+            // おみくじ代分持っていない場合、終了
+            res.send(
+              `<@${slackId}>ちゃんは *${OMIKUJI_MERITUM}めりたん* ないからおみくじ引けないよ。`
+            );
+            yield t.commit();
+            return;
+          }
+          // アカウントがない場合に作成してもまだないなら終了
+          if (!account) {
+            res.send('アカウントを作成することができなかったみたい。');
+            console.log('アカウントを作成することができなかったみたい。');
+            yield t.commit();
+            return;
+          }
+          const prizes = [
+            '大吉',
+            '吉',
+            '吉',
+            '中吉',
+            '中吉',
+            '中吉',
+            '小吉',
+            '小吉',
+            '小吉',
+            '小吉',
+            '末吉',
+            '末吉',
+            '末吉',
+            '末吉',
+            '末吉',
+            '凶',
+            '凶',
+            '凶',
+            '凶',
+            '大凶'
+          ];
+          const prize = prizes[Math.floor(Math.random() * prizes.length)];
+          function getPrizeMeritum(prize) {
+            let result = 0;
+            switch (prize) {
+              case '大吉':
+                result = 20;
+                break;
+              case '吉':
+                result = 15;
+                break;
+              case '中吉':
+                result = 10;
+                break;
+              case '小吉':
+                result = 7;
+                break;
+              case '末吉':
+                result = 4;
+                break;
+              case '凶':
+                result = 1;
+                break;
+              case '大凶':
+                result = 0;
+                break;
+              default:
+                result = 0;
+                break;
+            }
+            return result;
+          }
+          // 景品
+          const prizeMeritum = getPrizeMeritum(prize);
+          // 支払い処理
+          const newMeritum = account.meritum - OMIKUJI_MERITUM + prizeMeritum;
+          yield accounts_1.Account.update(
+            {
+              meritum: newMeritum
+            },
+            {
+              where: {
+                slackId: slackId
+              }
+            }
+          );
+          // おみくじ実績を作成
+          yield omikuji_1.Omikuji.create({
+            slackId,
+            receiptDate
+          });
+          yield t.commit();
+          if (prizeMeritum === 0) {
+            res.send(
+              `<@${slackId}>ちゃんの今日の運勢は... *${prize}* だよ！ 景品はないみたい。`
+            );
+          } else {
+            res.send(
+              `<@${slackId}>ちゃんの今日の運勢は... *${prize}* だよ！ 景品に *${prizeMeritum}めりたん* あげるね。`
+            );
+          }
+        }
+      } catch (e) {
+        console.log('Error on mmikuji> e:');
         console.log(e);
         yield t.rollback();
       }
